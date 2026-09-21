@@ -1,6 +1,6 @@
 import math
 import numpy as np
-import callbacks
+from callbacks import EarlyStopping
 
 """
     Funções de ativação recebem x
@@ -154,7 +154,8 @@ class MLP:
         y_pred = self.forward(X_train)
         return (y_pred >= threshold).astype(int)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs, lr, metrics : list, verbose_every=None):
+    def train(self, X_train, y_train, X_val, y_val, epochs, lr, metrics : list, verbose_every=None,
+              Callbacks = []):
         """
         Args:
         - X_train, y_train: Vetor de treinamento X e y
@@ -163,7 +164,8 @@ class MLP:
         - lr: Learning Rate
         - metrics: lista de métricas que serão usadas para treinar
         - verbose_every: Se nao especificado nao reporta, mas se sim a cada x iterações
-        
+        - Callbacks: Pode receber uma lista de callbacks, como earlystopping
+
         Realiza o treinamento da rede seguindo os passos:
         1 Passo: Foward do X_train
         2: Passo: Calculo da loss e backpropagation
@@ -185,6 +187,15 @@ class MLP:
             y_pred_val = self.forward(X_val)
             val_loss = self.compute_loss(y_val, y_pred_val)
             self.loss_history_val.append(val_loss)
+
+            if Callbacks:
+                for callback in Callbacks:
+                    if isinstance(callback, EarlyStopping):
+                        callback.on_epoch_end(self, epoch, val_loss)
+
+                        if callback.stop_training:
+                            callback.restore(self)
+                            break
 
             if verbose_every is not None and (epoch % verbose_every == 0 or epoch == 0 or epoch == epochs - 1):
                 y_pred_train_class = self.predict(X_train)

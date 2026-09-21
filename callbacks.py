@@ -35,4 +35,7 @@ class EarlyStopping():
             model.bias = self.best_bias
 
 
+class ReduceLRONPlateau():
+    def __init__(self, model, epoch, patience, factor: 0.0):
+        pass
 
