@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from callbacks import EarlyStopping
+from callbacks import *
 
 """
     Funções de ativação recebem x
@@ -174,6 +174,7 @@ class MLP:
         A métrica da validação será apenas calculada depois destes passos e não será treinada
 
         """
+        
         for epoch in range(epochs):
 
             y_pred_train = self.forward(X_train)
@@ -195,7 +196,12 @@ class MLP:
 
                         if callback.stop_training:
                             callback.restore(self)
-                            break
+                            return
+                    if isinstance(callback, ReduceLRONPlateau):
+                        callback.verify(val_loss)
+                        if callback.reduce:
+                            lr = callback.apply_reduction(lr)
+
 
             if verbose_every is not None and (epoch % verbose_every == 0 or epoch == 0 or epoch == epochs - 1):
                 y_pred_train_class = self.predict(X_train)
