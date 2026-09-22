@@ -1,6 +1,7 @@
 import math
 import numpy as np
 from callbacks import *
+import matplotlib.pyplot as plt
 
 """
     Funções de ativação recebem x
@@ -215,4 +216,19 @@ class MLP:
                     metric_strs.append(f"train_{metric}: {val_train:.4f} | val_{metric}: {val_val:.4f}|")
 
                 print(f"época {epoch:4d} | train_loss: {train_loss:.4f}| val_loss: {val_loss:.4f} | " + " | ".join(metric_strs))
-                
+
+    def plot_train_val_loss(self, figsize = (12,6)):
+        epochs_train = range(len(self.loss_history_train))
+        epochs_val = range(len(self.loss_history_val))
+
+        plt.figure(figsize=(figsize))
+        plt.plot(epochs_train, self.loss_history_train, label='Loss de Treino', color='blue', marker='o')
+        plt.plot(epochs_val, self.loss_history_val, label='Loss da Validação', color='orange', marker='o')
+        plt.title("Log loss treino/validação")
+        plt.xlabel("Epocas")
+        plt.ylabel("Valor Loss")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+        plt.close()
+
