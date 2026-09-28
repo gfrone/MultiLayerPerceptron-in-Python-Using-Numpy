@@ -16,6 +16,12 @@ def relu(x):
 def relu_backward(a):
     return (a > 0).astype(float)
 
+def tahn(x):
+    return np.tanh(x)
+
+def tahn_backward(a):
+    return 1 - np.square(a)
+
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
@@ -36,8 +42,9 @@ def bce_loss_grad(y_true, y_pred):
     y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)
     return (-y_true / y_pred + (1 - y_true) / (1 - y_pred)) / y_true.size
 
-def focal_loss():
-    pass
+def focal_loss(y_true, y_pred, gama, beta):
+    y_pred = np.clip(y_pred, 1e-15, 1 - 1e-15)
+    
 def focal_loss_grad():
     pass
 
@@ -49,32 +56,120 @@ def accuracy(y_pred, y_true):
     y_true = np.asarray(y_true).reshape(-1)
     return float(np.mean(y_pred == y_true))
 
+def precision(y_pred, y_true, label=1):
+    # Proporção de verdadeiros positivos para todas as predições positivas
+    # precision = TP / TP + FP
+    true_positives = np.sum((y_pred == y_true) & (y_pred == label))
+    false_positives = np.sum((y_pred != y_true) & (y_pred == label))
+    return true_positives / (true_positives + false_positives)
+
+def recall(y_pred, y_true, label=1):
+    # Proporção de verdadeiros positivos em relação a todos os classes positivas existentes
+    # recall = TP / TP + FN ou TP/ALL_POSITIVES_LABELS
+    true_positives = np.sum((y_pred == y_true) & (y_pred == label))
+    all_labels_positives = np.sum(y_true == label)
+    return true_positives / all_labels_positives
+
+def f1_score(y_pred, y_true):
+    p = precision(y_pred, y_true)
+    r = recall(y_pred, y_true)
+    return 2 * (p * r) / (p + r)
+
+def plot_confusion_matrix(y_pred, y_true):
+    y_pred = np.asarray(y_pred).reshape(-1)
+    y_true = np.asarray(y_true).reshape(-1)
+
+    tn = np.sum((y_pred == 0) & (y_true == 0))
+    fp = np.sum((y_pred == 1) & (y_true == 0))
+    fn = np.sum((y_pred == 0) & (y_true == 1))
+    tp = np.sum((y_pred == 1) & (y_true == 1))
+
+    matrix = np.array([
+        [tn, fp],
+        [fn, tp]
+    ])
+
+    plt.figure(figsize=(6, 5))
+    plt.imshow(matrix)
+
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+
+    plt.xticks([0, 1], ["0", "1"])
+    plt.yticks([0, 1], ["0", "1"])
+
+    for i in range(2):
+        for j in range(2):
+            plt.text(
+                j, i,
+                matrix[i, j],
+                ha="center",
+                va="center"
+            )
+
+    plt.colorbar()
+    plt.tight_layout()
+    plt.show()
+
+
+def classification_report(y_pred, y_true):
+    y_pred = np.asarray(y_pred).reshape(-1)
+    y_true = np.asarray(y_true).reshape(-1)
+
+    # Métricas para classe 0
+    precision_0 = precision(y_pred, y_true, label=0)
+    recall_0 = recall(y_pred, y_true, label=0)
+    f1_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
+
+    # Métricas para classe 1
+    precision_1 = precision(y_pred, y_true, label=1)
+    recall_1 = recall(y_pred, y_true, label=1)
+    f1_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
+
+    acc = accuracy(y_pred, y_true)
+
+    print("              precision    recall    f1-score")
+    print(f"0             {precision_0:.4f}      {recall_0:.4f}      {f1_0:.4f}")
+    print(f"1             {precision_1:.4f}      {recall_1:.4f}      {f1_1:.4f}")
+    print()
+    print(f"accuracy                          {acc:.4f}")
+
+
 LOSSES = {
     'bce':   (bce_loss, bce_loss_grad),
     'focal': (focal_loss, focal_loss_grad),
 }
 
+ACTIVATIONS = {
+    'relu' : (relu, relu_backward),
+    'tahn' : (tahn, tahn_backward)
+}
+
 METRICS = {
     'accuracy': accuracy,
-    # 'precision': precision,
-    # 'recall': recall,
-    # 'f1': f1_score,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1_score,
 }
 
 class MLP:
-    def __init__(self, layers_size : list, hidden_activation, seed : int, loss : str):
+    def __init__(self, layers_size : list, hidden_activation, seed : int, loss : str, weight_initialization : str = 'he'):
+
         """
         layer_sizes: lista, ex [2, H, 1] -> entrada, oculta(s), saída
         hidden_activation: string, ex 'relu' -> resolve pra função via dict interno
         seed: int, seed fixa pro rng da instância
         loss: string, diz o nome da loss - retorna a loss e o gradiente da loss para a derivada - "bce" ou "focal"
+        weight_initialization: Modo de inicialização dos pesos - pode ser HeNormal ou Aleatória
         """
         self.layers_size = layers_size
-        self.hidden_activation = hidden_activation
+        self.act_fn, self.act_grad = ACTIVATIONS[hidden_activation]
         self.rng = np.random.default_rng(seed)
         
         self.weights = []
         self.bias = []
+        self.init_type = weight_initialization
         self._init_params()
 
         self.cache = {}
@@ -91,6 +186,7 @@ class MLP:
 
     def _init_params(self):
         """Inicializa pesos e bias para cada par de camadas consecutivas."""
+
         for n_in, n_out in zip(self.layers_size[:-1], self.layers_size[1:]):
             matrix, bias = self._he_init_layer(n_in, n_out)
             self.bias.append(bias)
@@ -105,7 +201,7 @@ class MLP:
         cache = {'A0': X}
         for i, (W, b) in enumerate(zip(self.weights, self.bias)):
             Z = A @ W + b
-            A = sigmoid(Z) if i == len(self.weights) - 1 else relu(Z)
+            A = sigmoid(Z) if i == len(self.weights) - 1 else self.act_fn(Z)
             cache[f'Z{i + 1}'] = Z
             cache[f'A{i + 1}'] = A
 
@@ -115,7 +211,7 @@ class MLP:
     def compute_loss(self, y_true, y_pred):
         return self.loss_fn(y_true, y_pred)
 
-    def backward(self, X, y_true):
+    def backward(self, y_true):
         L = len(self.weights) # Número de camadas
 
         dWs = [None] * L  # Vetor dos gradiente dos pesos
@@ -124,7 +220,7 @@ class MLP:
         # Para a última camada, calculamos seu gradiente
         # Com o ultimo gradiente podemos iniciar o loop
         A_out = self.cache[f'A{L}']
-        delta = self.loss_grad(y_true, A_out) * sigmoid_backward(A_out)
+        delta = self.loss_grad(y_true, A_out) * self.act_grad(A_out)
 
         for i in reversed(range(L)):
             previous_activation = self.cache[f'A{i}']
@@ -136,7 +232,7 @@ class MLP:
 
             if i > 0:  # Para todas camadas, exceto a de input
                 # Atualiza o valor de delta para as proximas iterações - propagação do gradiente
-                delta = (delta @ self.weights[i].T) * (relu_backward(previous_activation))
+                delta = (delta @ self.weights[i].T) * (self.act_grad(previous_activation))
 
         return dWs, dWb
 
@@ -182,7 +278,7 @@ class MLP:
             train_loss = self.compute_loss(y_train, y_pred_train)
             self.loss_history_train.append(train_loss)
 
-            dWs, dWb = self.backward(X_train, y_train)
+            dWs, dWb = self.backward(y_train)
             self.update_params(dWs, dWb, lr)    
 
             # Não treina validação
