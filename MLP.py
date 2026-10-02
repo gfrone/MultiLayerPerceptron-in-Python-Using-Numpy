@@ -154,7 +154,7 @@ METRICS = {
 }
 
 class MLP:
-    def __init__(self, layers_size : list, hidden_activation, seed : int, loss : str, weight_initialization : str = 'he'):
+    def __init__(self, layers_size : list, hidden_activation : str, seed : int, loss : str, weight_initialization : str = 'he'):
 
         """
         layer_sizes: lista, ex [2, H, 1] -> entrada, oculta(s), saída
