@@ -176,7 +176,7 @@ class MLP:
         self.loss_history_train = []
         self.loss_history_val = []
         self.loss_fn, self.loss_grad = LOSSES[loss]
-
+        
     def _he_init_layer(self, n_in, n_out):
         """Retorna (W, b) para uma única camada com He init."""
         sigma = np.sqrt(2.0 / n_in)
@@ -184,11 +184,17 @@ class MLP:
         b = np.zeros((1, n_out))
         return W, b
 
+    def _random_init_layer(self, n_in, n_out, std=0.01):
+        W = self.rng.normal(0.0, std, size=(n_in, n_out))
+        b = np.zeros((1, n_out))
+        return W, b
+
+
     def _init_params(self):
         """Inicializa pesos e bias para cada par de camadas consecutivas."""
 
         for n_in, n_out in zip(self.layers_size[:-1], self.layers_size[1:]):
-            matrix, bias = self._he_init_layer(n_in, n_out)
+            matrix, bias = self._he_init_layer(n_in, n_out) if self.init_type == 'he' else self._random_init_layer(n_in, n_out)
             self.bias.append(bias)
             self.weights.append(matrix)
 
