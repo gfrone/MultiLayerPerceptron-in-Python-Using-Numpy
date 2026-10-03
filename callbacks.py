@@ -15,20 +15,18 @@ class EarlyStopping():
         self.best_value = float("inf")
         self.wait = 0
         self.stop_training = False
-        self.best_weights = None
-        self.best_bias = None
+        self.best_layers = None
         self.best_epoch = None
 
     def on_epoch_end(self, model, epoch, monitored_value):
-        improved = (monitored_value < self.best_value - self.min_delta).astype(bool)
+        improved = monitored_value < self.best_value - self.min_delta
 
         if improved:
             self.best_value = monitored_value
             self.wait = 0
             self.best_epoch = epoch
 
-            self.best_weights = copy.deepcopy(model.weights)
-            self.best_bias = copy.deepcopy(model.bias)
+            self.best_layers = copy.deepcopy(model.layers)
 
         else:
             self.wait += 1
@@ -38,10 +36,11 @@ class EarlyStopping():
 
 
     def restore(self, model):
-        if self.restore_best:
+        if self.restore_best and self.best_layers is not None:
             print(f"EarlyStopping: Restaurando os melhores pesos do treinamento: época {self.best_epoch}")
-            model.weights = self.best_weights
-            model.bias = self.best_bias
+            for model_layer, best_layer in zip(model.layers, self.best_layers):
+                model_layer.W = best_layer.W.copy()
+                model_layer.b = best_layer.b.copy()
 
 
 class ReduceLRONPlateau():

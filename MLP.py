@@ -2,32 +2,12 @@ import math
 import numpy as np
 from callbacks import *
 import matplotlib.pyplot as plt
+from Layers import Layer
 
 """
     Funções de ativação recebem x
     A derivada dessas funções no backpropagation recebem a(ativação da camada anterior)
 """
-
-## ------------------------------------- FUNÇÕES DE ATIVAÇÃO ------------------------------------- ##
-
-def relu(x):
-    return np.maximum(0, x)
-
-def relu_backward(a):
-    return (a > 0).astype(float)
-
-def tahn(x):
-    return np.tanh(x)
-
-def tahn_backward(a):
-    return 1 - np.square(a)
-
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-def sigmoid_backward(a):
-    return a * (1 - a)
-
 
 ## --------- Losses: Funções de perda ------------------------------------------ ##
 
@@ -51,33 +31,33 @@ def focal_loss_grad():
 
 ## -------------------------------------- METRICAS DE AVALIAÇÃO --------------------------------------------
 
-def accuracy(y_pred, y_true):
-    y_pred = np.asarray(y_pred).reshape(-1)
+def accuracy(y_true, y_pred):
     y_true = np.asarray(y_true).reshape(-1)
+    y_pred = np.asarray(y_pred).reshape(-1)
     return float(np.mean(y_pred == y_true))
 
-def precision(y_pred, y_true, label=1):
+def precision(y_true, y_pred, label=1):
     # Proporção de verdadeiros positivos para todas as predições positivas
     # precision = TP / TP + FP
     true_positives = np.sum((y_pred == y_true) & (y_pred == label))
     false_positives = np.sum((y_pred != y_true) & (y_pred == label))
     return true_positives / (true_positives + false_positives)
 
-def recall(y_pred, y_true, label=1):
+def recall(y_true, y_pred, label=1):
     # Proporção de verdadeiros positivos em relação a todos os classes positivas existentes
     # recall = TP / TP + FN ou TP/ALL_POSITIVES_LABELS
     true_positives = np.sum((y_pred == y_true) & (y_pred == label))
     all_labels_positives = np.sum(y_true == label)
     return true_positives / all_labels_positives
 
-def f1_score(y_pred, y_true):
-    p = precision(y_pred, y_true)
-    r = recall(y_pred, y_true)
+def f1_score(y_true, y_pred):
+    p = precision(y_true, y_pred)
+    r = recall(y_true, y_pred)
     return 2 * (p * r) / (p + r)
 
-def plot_confusion_matrix(y_pred, y_true):
-    y_pred = np.asarray(y_pred).reshape(-1)
+def plot_confusion_matrix(y_true, y_pred):
     y_true = np.asarray(y_true).reshape(-1)
+    y_pred = np.asarray(y_pred).reshape(-1)
 
     tn = np.sum((y_pred == 0) & (y_true == 0))
     fp = np.sum((y_pred == 1) & (y_true == 0))
@@ -113,21 +93,21 @@ def plot_confusion_matrix(y_pred, y_true):
     plt.show()
 
 
-def classification_report(y_pred, y_true):
-    y_pred = np.asarray(y_pred).reshape(-1)
+def classification_report(y_true, y_pred):
     y_true = np.asarray(y_true).reshape(-1)
+    y_pred = np.asarray(y_pred).reshape(-1)
 
     # Métricas para classe 0
-    precision_0 = precision(y_pred, y_true, label=0)
-    recall_0 = recall(y_pred, y_true, label=0)
+    precision_0 = precision(y_true, y_pred, label=0)
+    recall_0 = recall(y_true, y_pred, label=0)
     f1_0 = 2 * (precision_0 * recall_0) / (precision_0 + recall_0)
 
     # Métricas para classe 1
-    precision_1 = precision(y_pred, y_true, label=1)
-    recall_1 = recall(y_pred, y_true, label=1)
+    precision_1 = precision(y_true, y_pred, label=1)
+    recall_1 = recall(y_true, y_pred, label=1)
     f1_1 = 2 * (precision_1 * recall_1) / (precision_1 + recall_1)
 
-    acc = accuracy(y_pred, y_true)
+    acc = accuracy(y_true, y_pred)
 
     print("              precision    recall    f1-score")
     print(f"0             {precision_0:.4f}      {recall_0:.4f}      {f1_0:.4f}")
@@ -141,11 +121,6 @@ LOSSES = {
     'focal': (focal_loss, focal_loss_grad),
 }
 
-ACTIVATIONS = {
-    'relu' : (relu, relu_backward),
-    'tahn' : (tahn, tahn_backward)
-}
-
 METRICS = {
     'accuracy': accuracy,
     'precision': precision,
@@ -154,103 +129,41 @@ METRICS = {
 }
 
 class MLP:
-    def __init__(self, layers_size : list, hidden_activation, seed : int, loss : str, weight_initialization : str = 'he'):
+    def __init__(self, input_dim, seed : int, loss : str):
 
-        """
-        layer_sizes: lista, ex [2, H, 1] -> entrada, oculta(s), saída
-        hidden_activation: string, ex 'relu' -> resolve pra função via dict interno
-        seed: int, seed fixa pro rng da instância
-        loss: string, diz o nome da loss - retorna a loss e o gradiente da loss para a derivada - "bce" ou "focal"
-        weight_initialization: Modo de inicialização dos pesos - pode ser HeNormal ou Aleatória
-        """
-        self.layers_size = layers_size
-        self.act_fn, self.act_grad = ACTIVATIONS[hidden_activation]
         self.rng = np.random.default_rng(seed)
-        
-        self.weights = []
-        self.bias = []
-        self.init_type = weight_initialization
-        self._init_params()
-
-        self.cache = {}
         self.loss_history_train = []
         self.loss_history_val = []
         self.loss_fn, self.loss_grad = LOSSES[loss]
-        
-    def _he_init_layer(self, n_in, n_out):
-        """Retorna (W, b) para uma única camada com He init."""
-        sigma = np.sqrt(2.0 / n_in)
-        W = self.rng.normal(0.0, sigma, size=(n_in, n_out))
-        b = np.zeros((1, n_out))
-        return W, b
+        self.input_dim = input_dim
+        self.layers = []
 
-    def _random_init_layer(self, n_in, n_out, std=0.01):
-        W = self.rng.normal(0.0, std, size=(n_in, n_out))
-        b = np.zeros((1, n_out))
-        return W, b
-
-
-    def _init_params(self):
-        """Inicializa pesos e bias para cada par de camadas consecutivas."""
-
-        for n_in, n_out in zip(self.layers_size[:-1], self.layers_size[1:]):
-            matrix, bias = self._he_init_layer(n_in, n_out) if self.init_type == 'he' else self._random_init_layer(n_in, n_out)
-            self.bias.append(bias)
-            self.weights.append(matrix)
+    def add(self, layer : Layer):
+        n_in = self.input_dim if not self.layers else self.layers[-1].units
+        layer.build(n_in, layer.units, self.rng)
+        self.layers.append(layer)
 
     def forward(self, X):
-        """
-        X -> vetor X da entrada: shape (N, n_features)
-        Propaga camada por camada e guarda Z e A em self.cache.
-        """
-        A = X
-        cache = {'A0': X}
-        for i, (W, b) in enumerate(zip(self.weights, self.bias)):
-            Z = A @ W + b
-            A = sigmoid(Z) if i == len(self.weights) - 1 else self.act_fn(Z)
-            cache[f'Z{i + 1}'] = Z
-            cache[f'A{i + 1}'] = A
+        x = X
+        # bota umas celula de verificaççao pq ta dando erro aqui eu acho
+        if X.ndim != 2:
+            raise ValueError(
+                f"X deve ser uma matriz 2D, mas recebeu shape {X.shape}"
+            )
 
-        self.cache = cache
-        return A
+        if X.shape[1] != self.input_dim:
+            raise ValueError("A dimensão de X_train é diferente da especificada no input")
+
+        for layer in self.layers:
+            x = layer.forward(x)
+        return x
 
     def compute_loss(self, y_true, y_pred):
         return self.loss_fn(y_true, y_pred)
 
-    def backward(self, y_true):
-        L = len(self.weights) # Número de camadas
-
-        dWs = [None] * L  # Vetor dos gradiente dos pesos
-        dWb = [None] * L  # Vetor do gradiente dos biases
-
-        # Para a última camada, calculamos seu gradiente
-        # Com o ultimo gradiente podemos iniciar o loop
-        A_out = self.cache[f'A{L}']
-        delta = self.loss_grad(y_true, A_out) * self.act_grad(A_out)
-
-        for i in reversed(range(L)):
-            previous_activation = self.cache[f'A{i}']
-
-            # Calcula o gradiente da camada atual, com o delta da camada anterior
-            # dWs{l+1} = Activation{l+1}.Transposta * delta{l}
-            dWs[i] = previous_activation.T @ delta 
-            dWb[i] = np.sum(delta, axis=0, keepdims=True)
-
-            if i > 0:  # Para todas camadas, exceto a de input
-                # Atualiza o valor de delta para as proximas iterações - propagação do gradiente
-                delta = (delta @ self.weights[i].T) * (self.act_grad(previous_activation))
-
-        return dWs, dWb
-
-    def update_params(self, dWs, dWb, lr):
-        """
-        Função que atualiza os pesos da matriz e bias
-        lr = Learning Rate - tamanho do passo que está sendo dado
-        """
-        n = len(self.weights)
-        for i in reversed(range(n)):
-            self.weights[i] = self.weights[i] - (lr * dWs[i])
-            self.bias[i] = self.bias[i] - (lr * dWb[i])
+    def backward(self, dA):
+        for layer in reversed(self.layers):
+            dA = layer.backward(dA)
 
     def predict(self, X_train, threshold = 0.5):
         # Retorna a predição nas classes 0 ou 1, com base no threshold
@@ -259,24 +172,6 @@ class MLP:
 
     def train(self, X_train, y_train, X_val, y_val, epochs, lr, metrics : list, verbose_every=None,
               Callbacks = []):
-        """
-        Args:
-        - X_train, y_train: Vetor de treinamento X e y
-        - X_val, y_val: Vetores utilizados apenas para validação
-        - epochs: Número máximo de épocas que será realizado o treinamento
-        - lr: Learning Rate
-        - metrics: lista de métricas que serão usadas para treinar
-        - verbose_every: Se nao especificado nao reporta, mas se sim a cada x iterações
-        - Callbacks: Pode receber uma lista de callbacks, como earlystopping
-
-        Realiza o treinamento da rede seguindo os passos:
-        1 Passo: Foward do X_train
-        2: Passo: Calculo da loss e backpropagation
-        3: Passo: Atualização do peso do treinamento
-        Vai seguindo estes passos seguidamente segundo o SGD
-        A métrica da validação será apenas calculada depois destes passos e não será treinada
-
-        """
         
         for epoch in range(epochs):
 
@@ -284,8 +179,11 @@ class MLP:
             train_loss = self.compute_loss(y_train, y_pred_train)
             self.loss_history_train.append(train_loss)
 
-            dWs, dWb = self.backward(y_train)
-            self.update_params(dWs, dWb, lr)    
+            dA = self.loss_grad(y_train, y_pred_train)
+            self.backward(dA)
+
+            for layer in self.layers:
+                layer.update_params(lr)
 
             # Não treina validação
             y_pred_val = self.forward(X_val)
@@ -313,11 +211,13 @@ class MLP:
                 metric_strs = []
                 for metric in metrics:
                     metric_fn = METRICS[metric]
-                    val_train = metric_fn(y_train, y_pred_train_class)
-                    val_val = metric_fn(y_val, y_pred_val_class)
+                    val_train = metric_fn(y_pred_train_class, y_train)
+                    val_val = metric_fn(y_pred_val_class, y_val)
                     metric_strs.append(f"train_{metric}: {val_train:.4f} | val_{metric}: {val_val:.4f}|")
 
                 print(f"época {epoch:4d} | train_loss: {train_loss:.4f}| val_loss: {val_loss:.4f} | " + " | ".join(metric_strs))
+
+    # ------------------ Plot das curvas de treinamento ----------------------------------
 
     def plot_train_val_loss(self, figsize = (12,6)):
         epochs_train = range(len(self.loss_history_train))
@@ -333,4 +233,3 @@ class MLP:
         plt.grid(True)
         plt.show()
         plt.close()
-
