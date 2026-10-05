@@ -30,7 +30,7 @@ class EarlyStopping():
 
         else:
             self.wait += 1
-            if self.wait > self.patience:
+            if self.wait >= self.patience:
                 self.stop_training=True
                 print(f"EarlyStopping: Interrompendo o treinamento na época {epoch}")
 

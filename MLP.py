@@ -171,21 +171,36 @@ class MLP:
         return (y_pred >= threshold).astype(int)
 
     def train(self, X_train, y_train, X_val, y_val, epochs, lr, metrics : list, verbose_every=None,
-              Callbacks = []):
+              batch_size=None, Callbacks = None):
+        """
+            Caso nao seja especificado batch_size, então é gradient descent, passando todo o dataset
+        """
         
+        X_train, y_train = np.asarray(X_train), np.asarray(y_train)
+        N = X_train.shape[0]
+        if batch_size is None:
+            batch_size = N
+
         for epoch in range(epochs):
+            indices = self.rng.permutation(N)
+            X_shuffled = X_train[indices]
+            y_shuffled = y_train[indices]
+
+            for index in range(0, N, batch_size): # Passa o dataset em X batches, tipo em 32 em 32, por exemplo
+                Xb = X_shuffled[index:index + batch_size]
+                yb = y_shuffled[index:index + batch_size]
+
+                y_pred_b = self.forward(Xb)
+                dA = self.loss_grad(yb, y_pred_b)
+                self.backward(dA)
+
+                for layer in self.layers:
+                    layer.update_params(lr)
 
             y_pred_train = self.forward(X_train)
             train_loss = self.compute_loss(y_train, y_pred_train)
             self.loss_history_train.append(train_loss)
-
-            dA = self.loss_grad(y_train, y_pred_train)
-            self.backward(dA)
-
-            for layer in self.layers:
-                layer.update_params(lr)
-
-            # Não treina validação
+            
             y_pred_val = self.forward(X_val)
             val_loss = self.compute_loss(y_val, y_pred_val)
             self.loss_history_val.append(val_loss)
