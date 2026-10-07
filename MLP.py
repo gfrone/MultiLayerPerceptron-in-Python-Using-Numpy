@@ -131,7 +131,7 @@ METRICS = {
 class MLP:
     def __init__(self, input_dim, seed : int, loss : str):
 
-        self.rng = np.random.default_rng(seed)
+            
         self.loss_history_train = []
         self.loss_history_val = []
         self.loss_fn, self.loss_grad = LOSSES[loss]
@@ -248,3 +248,4 @@ class MLP:
         plt.grid(True)
         plt.show()
         plt.close()
+
